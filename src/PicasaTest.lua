@@ -8,4 +8,28 @@
 
 Picasa = require "src/Picasa"
 
-Picasa.loadIniFile("/","1.picasa.ini")
+function Picasa.logInfoBridge(message, lineNumber)
+    if (lineNumber == nil) then
+        print(message)
+    else
+        print(lineNumber, message)
+    end
+end
+
+function Picasa.logDebugBridge(message, lineNumber)
+    if (lineNumber == nil) then
+        print(message)
+    else
+        print(lineNumber, message)
+    end
+end
+
+function Picasa.logDebugBridge(message, lineNumber)
+    if (lineNumber == nil) then
+        print(message)
+    else
+        print(lineNumber, message)
+    end
+end
+
+Picasa.loadIniFile("/", "inis/2005/2005-10 - Buenos Aires/Picasa.ini")
