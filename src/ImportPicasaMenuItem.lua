@@ -43,11 +43,6 @@ LrTasks.startAsyncTask(function(context)
     io.close(file)
     local line = nil
 
-    local function skipComments()
-        while line:find('^%s*#') ~= nil do
-            line = file.read()
-        end
-    end
 
     local function tryHeader()
         return line:match('^%s*([.+])%s*$')
