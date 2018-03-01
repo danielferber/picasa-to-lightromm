@@ -1,0 +1,64 @@
+<!--
+    Before use:
+    * be sure to have a 32bit luac installed
+    * configure property ${luac} including full path
+
+    If you want to use the install target:
+    * configure property ${lrPluginFolder} including full path
+-->
+<project
+        name="lua4"
+        default="dist"
+        basedir="."
+>
+    <property name="luac" value="C:/Portable/lua/bin/luac.exe"/>
+    <property name="lrPluginFolder" value="C:/Users/dffwe/Lightroom/"/>
+    <property name="src" location="src"/>
+    <property name="resources" location="resources"/>
+    <property name="build" location="build"/>
+    <property name="dist"  location="dist"/>
+
+    <property name="pluginFolderName" value="${ant.project.name}.lrplugin" />
+    <property name="pluginFolder" location="${build}/${pluginFolderName}"/>
+    <property name="pluginDeploymentUnit"  location="${dist}/${pluginFolderName}.zip"/>
+
+    <target name="clean">
+        <delete dir="${build}"/>
+        <delete dir="${dist}"/>
+    </target>
+
+    <target name="init" depends="clean">
+        <mkdir dir="${pluginFolder}" />
+        <mkdir dir="${dist}"/>
+    </target>
+
+    <target name="copy-resources" depends="init">
+        <copy todir="${pluginFolder}">
+            <fileset dir="${resources}" casesensitive="yes">
+                <include name="**/*"/>
+            </fileset>
+        </copy>
+    </target>
+
+    <target name="compile" depends="copy-resources">
+        <apply executable="${luac}" type="file" verbose="true">
+            <arg value="-s" />
+            <arg value="-o" />
+            <targetfile />
+            <fileset dir="${src}">
+                <include name="**/*.lua" />
+            </fileset>
+            <mapper type="glob" from="*.lua" to="${pluginFolder}/*.lua" />
+        </apply>
+    </target>
+
+    <target name="dist" depends="compile">
+        <zip destfile="${pluginDeploymentUnit}" basedir="${build}">
+            <include name="${pluginFolderName}/**" />
+        </zip>
+    </target>
+
+    <target name="install" depends="dist">
+        <unzip src="${pluginDeploymentUnit}" dest="${lrPluginFolder}" overwrite="true" />
+    </target>
+</project>
