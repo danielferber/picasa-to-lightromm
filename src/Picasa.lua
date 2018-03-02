@@ -13,16 +13,14 @@ Picasa.INFO = 0
 Picasa.DEBUG = 1
 Picasa.TRACE = 2
 
+--- Split a string into a list of strings using a separator character.
+-- @param sep Separator character
+-- @return List of strings
 function string:split(sep)
     local fields = {}
     local pattern = string.format("([^%s]+)", sep)
     self:gsub(pattern, function(c) fields[#fields + 1] = c end)
     return fields
-end
-
-local function decodeRotate(value)
-    local rotate = value:match('rotate%((%d+))%)')
-    return rotate
 end
 
 --- Helper method to log a message.
@@ -144,71 +142,83 @@ function Picasa.loadIniFile(picasaIniFilePath)
         -- Index all edits for the image.
         local imageInfo = {}
         Picasa[Picasa.childPath(picasaIniDirPath, imageFileName)] = imageInfo
+
         local function readProperty()
-            local name, value = currentLine:match('^%s*([%w_]+)=(.*)$')
-            if name == nil then
+            local propertyName, propertyValue = currentLine:match('^%s*([%w_]+)=(.*)$')
+            if propertyName == nil then
+                -- Current line does not contain a property
                 return false
             end
-            local upperCaseName = name:upper()
-            if upperCaseName == 'STAR' then
-                local hasStar = value:upper() == 'YES'
-                lineLog(Picasa.DEBUG, "Set star %s.", tostring(hasStar))
-                imageInfo.star = hasStar
+            local uppercasePropertyName = propertyName:upper()
+            if uppercasePropertyName == 'STAR' and propertyValue:upper() == 'YES' then
+                imageInfo.star = true
+                lineLog(Picasa.DEBUG, "Set star.")
                 nextLine()
                 return true
-            elseif upperCaseName == 'CAPTION' then
-                lineLog(Picasa.DEBUG, "Set caption.")
-                imageInfo.caption = value
+            elseif uppercasePropertyName == 'CAPTION' then
+                imageInfo.caption = propertyValue
+                lineLog(Picasa.DEBUG, "Set caption to '%s'.", imageInfo.caption)
                 nextLine()
                 return true
-            elseif upperCaseName == 'ROTATE' then
-                lineLog(Picasa.DEBUG, "Set caption.")
-                imageInfo.caption = value
+            elseif uppercasePropertyName == 'ROTATE' then
+                local rotate = propertyValue:match('rotate%((%d+))%)')
+                if (rotate == nil) then
+                    lineLog(Picasa.DEBUG, "Invalid rotate attribute.")
+                else
+                    imageInfo.rotate = rotate
+                    lineLog(Picasa.DEBUG, "Set rotate to %d.", imageInfo.rotate)
+                end
                 nextLine()
                 return true
-            elseif upperCaseName == 'KEYWORDS' then
-                lineLog(Picasa.DEBUG, "Set keywords.")
-                imageInfo.keywords = value:split(',')
+            elseif uppercasePropertyName == 'KEYWORDS' then
+                imageInfo.keywords = propertyValue:split(',')
+                lineLog(Picasa.DEBUG, "Set keywords to '%s'", imageInfo.keywords)
                 nextLine()
                 return true
-            elseif upperCaseName == 'FILTERS' then
+            elseif uppercasePropertyName == 'FILTERS' then
                 local fields = {}
-                value:gsub('([%w_]+)=([^;]+)', function(n, v)
+                propertyValue:gsub('([%w_]+)=([^;]+)', function(n, v)
                     fields[n] = v:split(',')
                 end)
                 for fieldName, fieldValues in pairs(fields) do
-                    if fieldName == 'enhance' then
-                        imageInfo.enhance = fieldValues[1] == '1'
-                    elseif fieldName == 'autolight' then
-                        imageInfo.autolight = fieldValues[1] == '1'
-                    elseif fieldName == 'autocolor' then
-                        imageInfo.autocolor = fieldValues[1] == '1'
-                    elseif fieldName == 'bw' then
-                        imageInfo.blackWhite = fieldValues[1] == '1'
-                    elseif fieldName == 'tilt' then
-                        if fieldValues[1] == '1' then
-                            imageInfo.angle = tonumber(fieldValues[2])
-                            imageInfo.scale = tonumber(fieldValues[3])
+                    if fieldName == 'enhance' and fieldValues[1] == '1' then
+                        imageInfo.enhance = true
+                        lineLog(Picasa.DEBUG, "Set enhance filter.")
+                    elseif fieldName == 'autolight' and fieldValues[1] == '1' then
+                        imageInfo.autolight = true
+                        lineLog(Picasa.DEBUG, "Set autolight filter.")
+                    elseif fieldName == 'autocolor' and fieldValues[1] == '1' then
+                        imageInfo.autocolor = true
+                        lineLog(Picasa.DEBUG, "Set autocolor filter.")
+                    elseif fieldName == 'bw' and fieldValues[1] == '1' then
+                        imageInfo.blackWhite = true
+                        lineLog(Picasa.DEBUG, "Set black & white filter.")
+                    elseif fieldName == 'tilt' and fieldValues[1] == '1' then
+                        imageInfo.angle = tonumber(fieldValues[2])
+                        imageInfo.scale = tonumber(fieldValues[3])
+                        lineLog(Picasa.DEBUG, "Set tilt to %f.", imageInfo.angle)
+                        lineLog(Picasa.DEBUG, "Set scale to %f.", imageInfo.scale)
+                    elseif fieldName == 'crop64' and fieldValues[1] == '1' then
+                        local hexLeft, hexTop, hexRight, hexBottom = fieldValues[2]:match('(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)')
+                        if hexLeft ~= nil and hexTop ~= nil and hexRight ~= nil and hexBottom ~= nil then
+                            imageInfo.crop = {
+                                left = tonumber(hexLeft, 16) / 65536,
+                                top = tonumber(hexTop, 16) / 65536,
+                                right = tonumber(hexRight, 16) / 65536,
+                                bottom = tonumber(hexBottom, 16) / 65536
+                            }
+                        else
+                            lineLog(Picasa.DEBUG, "Set crop to %f, %f, %f, %f.", imageInfo.crop.left, imageInfo.crop.top, imageInfo.crop.right, imageInfo.bottom)
                         end
-                    elseif fieldName == 'crop64' then
-                        if fieldValues[1] == '1' then
-                            local hexLeft, hexTop, hexRight, hexBottom = fieldValues[2]:match('(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)')
-                            if hexLeft ~= nil and hexTop ~= nil and hexRight ~= nil and hexBottom ~= nil then
-                                imageInfo.crop = {
-                                    left = tonumber(hexLeft, 16) / 65536,
-                                    top = tonumber(hexTop, 16) / 65536,
-                                    right = tonumber(hexRight, 16) / 65536,
-                                    bottom = tonumber(hexBottom, 16) / 65536
-                                }
-                            end
-                        end
+                    else
+                        lineLog(Picasa.DEBUG, "Ignore filter '%s'.", fieldName)
                     end
                 end
 
                 nextLine()
                 return true
             else
-                lineLog(Picasa.DEBUG, " - Ignore property '%s'.", name)
+                lineLog(Picasa.DEBUG, "Ignore property '%s'.", propertyName)
                 nextLine()
                 return true
             end
