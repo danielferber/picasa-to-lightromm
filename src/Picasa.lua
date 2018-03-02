@@ -7,6 +7,12 @@
 --
 local Picasa = {}
 
+Picasa.ERROR = -2
+Picasa.WARN = -1
+Picasa.INFO = 0
+Picasa.DEBUG = 1
+Picasa.TRACE = 2
+
 function string:split(sep)
     local fields = {}
     local pattern = string.format("([^%s]+)", sep)
@@ -19,106 +25,125 @@ local function decodeRotate(value)
     return rotate
 end
 
-local function logDebug(message, ...)
+--- Helper method to log a message.
+-- @param level Log level (INFO, DEBUG, ...)
+-- @param message Log messagem. It may contain placeholders for string.format().
+-- @param ... Extra params for string.format().
+local function log(level, message, ...)
     if arg == nil then
-        Picasa.logDebugBridge(message)
+        Picasa.logBridge(level, message)
     else
-        Picasa.logDebugBridge(string.format(message, unpack(arg)))
+        Picasa.logBridge(level, string.format(message, unpack(arg)))
     end
 end
 
-local function logInfo(message, ...)
-    if arg == nil then
-        Picasa.logDebugBridge(message)
-    else
-        Picasa.logDebugBridge(string.format(message, unpack(arg)))
-    end
-end
-
-
-function Picasa.loadIniFile(picasaIniDirPath, picasaIniFilePath)
+function Picasa.loadIniFile(picasaIniFilePath)
+    local picasaIniDirPath = Picasa.directoryPath(picasaIniFilePath)
     local file = io.open(picasaIniFilePath)
     if file == nil then
-        debug("File not found")
-        return
+        error("Picasa file does not exist.")
     end
+
     local currentLine = file:read()
     local currentLineNumber = 1
 
-    local function lineLogDebug(message, ...)
-        if arg == nil then
-            Picasa.logDebugBridge(message, currentLineNumber)
-        else
-            Picasa.logDebugBridge(string.format(message, unpack(arg)), currentLineNumber)
-        end
-    end
-
-    local function lineLogInfo(message, ...)
-        if arg == nil then
-            Picasa.logInfoBridge(currentLineNumber, message)
-        else
-            Picasa.logInfoBridge(currentLineNumber, string.format(message, unpack(arg)))
-        end
-    end
-
+    --- Advance to next line.
     local function nextLine()
         currentLine = file:read()
         currentLineNumber = currentLineNumber + 1
         return currentLine
     end
 
+    --- Helper method to log about the current line.
+    -- @param level Log level (INFO, DEBUG, ...)
+    -- @param message Log messagem. It may contain placeholders for string.format().
+    -- @param ... Extra params for string.format().
+    local function lineLog(level, message, ...)
+        if arg == nil then
+            Picasa.logBridge(level, message, currentLineNumber)
+        else
+            Picasa.logBridge(level, string.format(message, unpack(arg)), currentLineNumber)
+        end
+    end
+
+    --- Skip the current line if it is empty (white spaces and tabs count as empty).
+    -- @return true if the line was skipped, false otherwise
     local function skipEmptyLine()
-        if currentLine:find('^%s*$') ~= nil then
-            lineLogDebug("Skip empty line.")
-            nextLine()
-            return true
+        if currentLine:find('^%s*$') == nil then
+            -- Current line does not is not empty.
+            return false
         end
-        return false
+        lineLog(Picasa.DEBUG, "Skip empty line.")
+        nextLine()
+        return true
     end
 
+    --- Skip the current line if it contains only a comment.
+    -- @return true if the line was skipped, false otherwise
     local function skipComments()
-        if currentLine:find('^%s*#') ~= nil then
-            lineLogDebug("Skip comment.")
-            nextLine()
-            return true
+        if currentLine:find('^%s*#') == nil then
+            -- Current line does not contain a comment
+            return false
         end
-        return false
+        lineLog(Picasa.DEBUG, "Skip comment.")
+        nextLine()
+        return true
     end
 
+    --- Skip the line if it contains a property.
+    -- @return true if the line was skipped, false otherwise
     local function skipProperty()
         local name = currentLine:match('^%s*([%w_]+)=')
-        if name ~= nil then
-            lineLogDebug("Skip property '%s'.", name)
-            nextLine()
-            return true
+        if name == nil then
+            -- Current line does not contain a property
+            return false
         end
-        return false
+        lineLog(Picasa.DEBUG, "Skip property '%s'.", name)
+        nextLine()
+        return true
     end
 
-    local function handleSection()
+    --- Skip lines that belong of a section that starts at the current line.
+    -- @return true if the section was skipped, false otherwise
+    local function skipSection()
         local sectionName = currentLine:match('^%s*%[(.*)%]%s*$')
         if sectionName == nil then
+            -- Current line is not a section header.
             return false
         end
 
-        local findResult = sectionName:find('%.')
-        if findResult == nil then
-            lineLogDebug("Ignore section '%s'.", sectionName)
-            nextLine()
-            while currentLine ~= nil do
-                if not (skipEmptyLine()
-                        or skipComments()
-                        or skipProperty()) then
-                    break
-                end
+        lineLog(Picasa.DEBUG, "Ignore section '%s'.", sectionName)
+        nextLine()
+        while currentLine ~= nil do
+            if not (skipEmptyLine()
+                    or skipComments()
+                    or skipProperty()) then
+                break
             end
-            return true
+        end
+        return true
+    end
+
+    local function handleImageSection()
+        local imageFileName = currentLine:match('^%s*%[(.*)%]%s*$')
+        if imageFileName == nil then
+            -- Current line is not a section header.
+            return false
         end
 
-        lineLogDebug("Handle image %s.", sectionName)
+        -- File name with extension
+        local findResult = imageFileName:find('%.')
+        if findResult == nil then
+            -- Header name does not contain a dot for the file extension (probably not a file name for an image).
+            return false
+        end
+
+        lineLog(Picasa.INFO, "Handle image %s.", imageFileName)
         nextLine()
+
+        -- Index all edits for the image.
         local imageInfo = {}
-        Picasa[picasaIniDirPath .. '/' .. sectionName] = imageInfo
+        Picasa[Picasa.childPath(picasaIniDirPath, imageFileName)] = imageInfo
         local function readProperty()
             local name, value = currentLine:match('^%s*([%w_]+)=(.*)$')
             if name == nil then
@@ -127,22 +152,22 @@ function Picasa.loadIniFile(picasaIniDirPath, picasaIniFilePath)
             local upperCaseName = name:upper()
             if upperCaseName == 'STAR' then
                 local hasStar = value:upper() == 'YES'
-                lineLogDebug("Set star %s.", tostring(hasStar))
+                lineLog(Picasa.DEBUG, "Set star %s.", tostring(hasStar))
                 imageInfo.star = hasStar
                 nextLine()
                 return true
             elseif upperCaseName == 'CAPTION' then
-                lineLogDebug("Set caption.")
+                lineLog(Picasa.DEBUG, "Set caption.")
                 imageInfo.caption = value
                 nextLine()
                 return true
             elseif upperCaseName == 'ROTATE' then
-                lineLogDebug("Set caption.")
+                lineLog(Picasa.DEBUG, "Set caption.")
                 imageInfo.caption = value
                 nextLine()
                 return true
             elseif upperCaseName == 'KEYWORDS' then
-                lineLogDebug("Set keywords.")
+                lineLog(Picasa.DEBUG, "Set keywords.")
                 imageInfo.keywords = value:split(',')
                 nextLine()
                 return true
@@ -183,7 +208,7 @@ function Picasa.loadIniFile(picasaIniDirPath, picasaIniFilePath)
                 nextLine()
                 return true
             else
-                lineLogDebug(" - Ignore property '%s'.", name)
+                lineLog(Picasa.DEBUG, " - Ignore property '%s'.", name)
                 nextLine()
                 return true
             end
@@ -198,7 +223,7 @@ function Picasa.loadIniFile(picasaIniDirPath, picasaIniFilePath)
     end
 
     while currentLine ~= nil do
-        local ok = skipEmptyLine() or skipComments() or handleSection()
+        local ok = skipEmptyLine() or skipComments() or handleImageSection() or skipSection()
         if (not ok) then break
         end
     end

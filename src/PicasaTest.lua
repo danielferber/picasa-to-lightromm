@@ -8,7 +8,7 @@
 
 Picasa = require "src/Picasa"
 
-function Picasa.logInfoBridge(message, lineNumber)
+function Picasa.logBridge(level, message, lineNumber)
     if (lineNumber == nil) then
         print(message)
     else
@@ -16,20 +16,19 @@ function Picasa.logInfoBridge(message, lineNumber)
     end
 end
 
-function Picasa.logDebugBridge(message, lineNumber)
-    if (lineNumber == nil) then
-        print(message)
+function Picasa.directoryPath(path)
+    pattern1 = "^(.+)/"
+    pattern2 = "^(.+)\\"
+
+    if (string.match(path, pattern1) == nil) then
+        return path:match(pattern2)
     else
-        print(lineNumber, message)
+        return path:match(pattern1)
     end
 end
 
-function Picasa.logDebugBridge(message, lineNumber)
-    if (lineNumber == nil) then
-        print(message)
-    else
-        print(lineNumber, message)
-    end
+function Picasa.childPath(path, child)
+    return path..'/'..child
 end
 
-Picasa.loadIniFile("/", "inis/2005/2005-10 - Buenos Aires/Picasa.ini")
+Picasa.loadIniFile("inis/2005/2005-10 - Buenos Aires/Picasa.ini")
