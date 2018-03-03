@@ -122,6 +122,8 @@ function Picasa.loadIniFile(picasaIniFilePath)
         return true
     end
 
+    --- Read lines that belong of a section that starts at the current line and that describe image edits.
+    -- @return true if the section was read, false otherwise
     local function handleImageSection()
         local imageFileName = currentLine:match('^%s*%[(.*)%]%s*$')
         if imageFileName == nil then
@@ -139,10 +141,12 @@ function Picasa.loadIniFile(picasaIniFilePath)
         lineLog(Picasa.INFO, "Handle image %s.", imageFileName)
         nextLine()
 
-        -- Index all edits for the image.
+        -- Index all edits for the image within the Picasa namespace.
         local imageInfo = {}
         Picasa[Picasa.childPath(picasaIniDirPath, imageFileName)] = imageInfo
 
+        --- Read the line if it contains an implemented edit property.
+        -- @return true if the line was read, false otherwise
         local function readProperty()
             local propertyName, propertyValue = currentLine:match('^%s*([%w_]+)=(.*)$')
             if propertyName == nil then
@@ -161,7 +165,7 @@ function Picasa.loadIniFile(picasaIniFilePath)
                 nextLine()
                 return true
             elseif uppercasePropertyName == 'ROTATE' then
-                local rotate = propertyValue:match('rotate%((%d+))%)')
+                local rotate = propertyValue:match('rotate%((%d+)%)')
                 if (rotate == nil) then
                     lineLog(Picasa.DEBUG, "Invalid rotate attribute.")
                 else
@@ -176,42 +180,55 @@ function Picasa.loadIniFile(picasaIniFilePath)
                 nextLine()
                 return true
             elseif uppercasePropertyName == 'FILTERS' then
-                local fields = {}
-                propertyValue:gsub('([%w_]+)=([^;]+)', function(n, v)
-                    fields[n] = v:split(',')
-                end)
-                for fieldName, fieldValues in pairs(fields) do
-                    if fieldName == 'enhance' and fieldValues[1] == '1' then
-                        imageInfo.enhance = true
-                        lineLog(Picasa.DEBUG, "Set enhance filter.")
-                    elseif fieldName == 'autolight' and fieldValues[1] == '1' then
-                        imageInfo.autolight = true
-                        lineLog(Picasa.DEBUG, "Set autolight filter.")
-                    elseif fieldName == 'autocolor' and fieldValues[1] == '1' then
-                        imageInfo.autocolor = true
-                        lineLog(Picasa.DEBUG, "Set autocolor filter.")
-                    elseif fieldName == 'bw' and fieldValues[1] == '1' then
-                        imageInfo.blackWhite = true
-                        lineLog(Picasa.DEBUG, "Set black & white filter.")
-                    elseif fieldName == 'tilt' and fieldValues[1] == '1' then
-                        imageInfo.angle = tonumber(fieldValues[2])
-                        imageInfo.scale = tonumber(fieldValues[3])
-                        lineLog(Picasa.DEBUG, "Set tilt to %f.", imageInfo.angle)
-                        lineLog(Picasa.DEBUG, "Set scale to %f.", imageInfo.scale)
-                    elseif fieldName == 'crop64' and fieldValues[1] == '1' then
-                        local hexLeft, hexTop, hexRight, hexBottom = fieldValues[2]:match('(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)')
-                        if hexLeft ~= nil and hexTop ~= nil and hexRight ~= nil and hexBottom ~= nil then
-                            imageInfo.crop = {
-                                left = tonumber(hexLeft, 16) / 65536,
-                                top = tonumber(hexTop, 16) / 65536,
-                                right = tonumber(hexRight, 16) / 65536,
-                                bottom = tonumber(hexBottom, 16) / 65536
-                            }
-                        else
-                            lineLog(Picasa.DEBUG, "Set crop to %f, %f, %f, %f.", imageInfo.crop.left, imageInfo.crop.top, imageInfo.crop.right, imageInfo.bottom)
-                        end
+                -- The filter property has a value that is a list of pairs name=1[,param1,param2...];
+                -- The first value is always 1. Following values are parameters, that depend on the filter.
+
+                for fieldName, fieldValuesStr in propertyValue:gmatch("([%w_]+)=([^;]+)") do
+                    local fieldValues = fieldValuesStr:split(',')
+                    if (#fieldValues < 1) or fieldValues[1] ~= '1' then
+                        lineLog(Picasa.WARN, "Invalid filter parameters '%s'.", fieldName)
                     else
-                        lineLog(Picasa.DEBUG, "Ignore filter '%s'.", fieldName)
+                        if fieldName == 'enhance' then
+                            imageInfo.enhance = true
+                            lineLog(Picasa.DEBUG, "Set enhance filter.")
+                        elseif fieldName == 'autolight' then
+                            imageInfo.autolight = true
+                            lineLog(Picasa.DEBUG, "Set autolight filter.")
+                        elseif fieldName == 'autocolor' then
+                            imageInfo.autocolor = true
+                            lineLog(Picasa.DEBUG, "Set autocolor filter.")
+                        elseif fieldName == 'bw' then
+                            imageInfo.blackWhite = true
+                            lineLog(Picasa.DEBUG, "Set black & white filter.")
+                        elseif fieldName == 'tilt' then
+                            if (#fieldValues == 3) then
+                                imageInfo.angle = tonumber(fieldValues[2])
+                                imageInfo.scale = tonumber(fieldValues[3])
+                            end
+                            if imageInfo.angle ~= nil and imageInfo.scale ~= nil then
+                                lineLog(Picasa.DEBUG, "Set tilt to %f.", imageInfo.angle)
+                                lineLog(Picasa.DEBUG, "Set scale to %f.", imageInfo.scale)
+                            else
+                                lineLog(Picasa.WARN, "Invalid filter parameters '%s'.", fieldName)
+                            end
+                        elseif fieldName == 'crop64' then
+                            local hexLeft, hexTop, hexRight, hexBottom = fieldValues[2]:match('(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)')
+                            if hexLeft ~= nil and hexTop ~= nil and hexRight ~= nil and hexBottom ~= nil then
+                                imageInfo.crop = {
+                                    left = tonumber(hexLeft, 16) / 65536,
+                                    top = tonumber(hexTop, 16) / 65536,
+                                    right = tonumber(hexRight, 16) / 65536,
+                                    bottom = tonumber(hexBottom, 16) / 65536
+                                }
+                            end
+                            if imageInfo.crop ~= nil and imageInfo.crop.left ~= nil and imageInfo.crop.top ~= nil and imageInfo.crop.right ~= nil and  imageInfo.crop.bottom ~= nil then
+                                lineLog(Picasa.DEBUG, "Set crop to %g, %g, %g, %g.", imageInfo.crop.left, imageInfo.crop.top, imageInfo.crop.right, imageInfo.crop.bottom)
+                            else
+                                lineLog(Picasa.WARN, "Invalid filter parameters '%s'.", fieldName)
+                            end
+                        else
+                            lineLog(Picasa.WARN, "Invalid filter '%s'.", fieldName)
+                        end
                     end
                 end
 
