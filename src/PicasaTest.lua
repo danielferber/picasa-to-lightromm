@@ -6,13 +6,13 @@
 -- To change this template use File | Settings | File Templates.
 --
 
-Picasa = require "src/Picasa"
+Picasa = require 'src/Picasa'
 
 function Picasa.logBridge(level, message, lineNumber)
     if (lineNumber == nil) then
-        print(message)
+        print(level, message)
     else
-        print(lineNumber, message)
+        print(level, lineNumber, message)
     end
 end
 
@@ -31,4 +31,4 @@ function Picasa.childPath(path, child)
     return path..'/'..child
 end
 
-Picasa.loadIniFile("inis/2005/2005-10 - Buenos Aires/Picasa.ini")
+Picasa.loadIniFile 'inis/2005/2005-10 - Buenos Aires/'
