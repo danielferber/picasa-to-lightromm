@@ -220,7 +220,7 @@ function Picasa.loadIniFile(picasaIniDirPath)
                 if (rotate == nil) then
                     lineLog(Picasa.DEBUG, "Invalid rotate attribute.")
                 else
-                    imageInfo.rotate = rotate
+                    imageInfo.rotate = tonumber(rotate)
                     lineLog(Picasa.DEBUG, "Set rotate to %d.", imageInfo.rotate)
                 end
                 nextLine()
@@ -263,6 +263,7 @@ function Picasa.loadIniFile(picasaIniDirPath)
                                 lineLog(Picasa.WARN, "Invalid filter parameters '%s'.", fieldName)
                             end
                         elseif fieldName == 'crop64' then
+                            fieldValues[2] = string.rep('0', 16-fieldValues[2]:len()) .. fieldValues[2]
                             local hexLeft, hexTop, hexRight, hexBottom = fieldValues[2]:match('(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)(%w+%w+%w+%w+)')
                             if hexLeft ~= nil and hexTop ~= nil and hexRight ~= nil and hexBottom ~= nil then
                                 imageInfo.crop = {
