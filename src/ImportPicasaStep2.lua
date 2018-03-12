@@ -114,7 +114,7 @@ local task = function(context)
                     logger:infof('Add keyword %s', name)
                     photo:addKeyword(keyword)
                 end
-                if picasaInfo.enhance == true and ConvertInfo.enhance ~= nil and ConvertInfo.enhance.apply == true then
+                if (picasaInfo.enhance == true or picasaInfo.autolight == true ) and ConvertInfo.enhance ~= nil and ConvertInfo.enhance.apply == true then
                     local newValue, oldValue = true, settings.AutoTone
                     if newValue ~= oldValue then
                         logger:infof('Set AutoTone from %s to %s', oldValue, newValue)
