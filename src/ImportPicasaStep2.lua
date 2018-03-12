@@ -7,6 +7,7 @@ local ConvertInfo = require 'ConvertInfo'
 local Picasa = require 'Picasa'
 local inspect = require 'inspect'
 local LrPathUtils = import 'LrPathUtils'
+local LrProgressScope = import 'LrProgressScope'
 
 local logger = LrLogger('ImportPicasaStep2')
 logger:enable("logfile")
@@ -64,11 +65,24 @@ local task = function(context)
         picasaKeyword = catalog:createKeyword(ConvertInfo.rootKeyword, {}, true, nil, true)
     end)
 
+    local progress = LrProgressScope({title = "Import Star, orientation..."})
+    progress:setCancelable(true)
+    progress:setCaption("Import Star, orientation...")
+    local progressDone = 0
+    local progressTotal = #photos
     local photosMetadata = catalog:batchGetRawMetadata(photos, { 'path', 'isVideo', 'rating', 'orientation', 'colorNameForLabel', 'pickStatus' })
     for photo, metadata in pairs(photosMetadata) do
+
+        if progress:isCanceled() then return end
+
         local directory = LrPathUtils.parent(metadata.path)
         if Picasa[directory] == nil then
+            progress:setCaption("Read Picasa file...")
+            progressTotal = progressTotal + 10
+            progress:setPortionComplete(progressDone, progressTotal)
             Picasa.loadIniFile(directory)
+            progressDone = progressDone + 10
+            progress:setCaption("Import Star, orientation...")
         end
 
         local picasaInfo = Picasa[metadata.path]
@@ -169,7 +183,10 @@ local task = function(context)
                 end
             end)
         end
+        progressDone = progressDone + 1
+        progress:setPortionComplete(progressDone, progressTotal)
     end
+    progress:done()
 end
 
 logger:infof("Menu item activated at %s", os.date("%d/%m/%Y %X"))
