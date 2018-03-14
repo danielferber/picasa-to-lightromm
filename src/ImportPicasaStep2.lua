@@ -65,12 +65,12 @@ local task = function(context)
         picasaKeyword = catalog:createKeyword(ConvertInfo.rootKeyword, {}, true, nil, true)
     end)
 
-    local progress = LrProgressScope({title = "Import Star, orientation..."})
+    local progress = LrProgressScope({ title = "Import Star, orientation..." })
     progress:setCancelable(true)
     progress:setCaption("Import Star, orientation...")
     local progressDone = 0
     local progressTotal = #photos
-    local photosMetadata = catalog:batchGetRawMetadata(photos, { 'path', 'isVideo', 'rating', 'orientation', 'colorNameForLabel', 'pickStatus' })
+    local photosMetadata = catalog:batchGetRawMetadata(photos, { 'path', 'isVideo', 'rating', 'orientation', 'colorNameForLabel', 'pickStatus', 'keywords' })
     for photo, metadata in pairs(photosMetadata) do
 
         if progress:isCanceled() then return end
@@ -93,7 +93,7 @@ local task = function(context)
 
                 logger:infof("Photo %s: Picasa edits available.", metadata.path)
                 local settings = photo:getDevelopSettings()
---                logger:debug("Photo metadata: " .. inspect(metadata))
+                --                logger:debug("Photo metadata: " .. inspect(metadata))
                 logger:debug("Photo settings: " .. inspect(settings))
                 logger:debug("Picasa metadata: " .. inspect(picasaInfo))
                 local applySettings = false
@@ -128,7 +128,7 @@ local task = function(context)
                     logger:infof('Add keyword %s', name)
                     photo:addKeyword(keyword)
                 end
-                if (picasaInfo.enhance == true or picasaInfo.autolight == true ) and ConvertInfo.enhance ~= nil and ConvertInfo.enhance.apply == true then
+                if (picasaInfo.enhance == true or picasaInfo.autolight == true) and ConvertInfo.enhance ~= nil and ConvertInfo.enhance.apply == true then
                     local newValue, oldValue = true, settings.AutoTone
                     if newValue ~= oldValue then
                         logger:infof('Set AutoTone from %s to %s', oldValue, newValue)
@@ -180,6 +180,18 @@ local task = function(context)
 
                 if applySettings then
                     photo:applyDevelopSettings(settings)
+                end
+
+                --[[ Remove rotate keywords ]]
+                if ConvertInfo.rotate ~= nil then
+                    for _, kw in pairs(metadata.keywords) do
+                        if ConvertInfo.rotate.keyword90 == kw:getName()
+                                or ConvertInfo.rotate.keyword180 == kw:getName()
+                                or ConvertInfo.rotate.keyword270 == kw:getName() then
+                            logger:infof('Remove keyword %s', kw:getName())
+                            photo:removeKeyword(kw)
+                        end
+                    end
                 end
             end)
         end
