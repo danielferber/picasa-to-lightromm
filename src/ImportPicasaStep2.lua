@@ -10,7 +10,7 @@ local LrPathUtils = import 'LrPathUtils'
 local LrProgressScope = import 'LrProgressScope'
 
 local logger = LrLogger('ImportPicasaStep2')
-logger:enable("logfile")
+logger:enable {fatal = "logfile", error = "logfile", warn = "logfile", info = "logfile"}
 
 function Picasa.logBridge(level, message, lineNumber)
     if lineNumber == nil then
@@ -82,7 +82,7 @@ local task = function(context)
             progress:setPortionComplete(progressDone, progressTotal)
             Picasa.loadIniFile(directory)
             progressDone = progressDone + 10
-            progress:setCaption("Import Star, orientation...")
+            progress:setCaption("Import crop, 'feeling lucky' and other edits...")
         end
 
         local picasaInfo = Picasa[metadata.path]
@@ -93,9 +93,8 @@ local task = function(context)
 
                 logger:infof("Photo %s: Picasa edits available.", metadata.path)
                 local settings = photo:getDevelopSettings()
-                --                logger:debug("Photo metadata: " .. inspect(metadata))
-                logger:debug("Photo settings: " .. inspect(settings))
-                logger:debug("Picasa metadata: " .. inspect(picasaInfo))
+                logger:trace("Photo settings: " .. inspect(settings))
+                logger:trace("Picasa metadata: " .. inspect(picasaInfo))
                 local applySettings = false
 
                 if picasaInfo.crop ~= nil and ConvertInfo.crop ~= nil and ConvertInfo.crop.keyword ~= nil then

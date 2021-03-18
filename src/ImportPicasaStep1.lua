@@ -9,7 +9,7 @@ local LrPathUtils = import 'LrPathUtils'
 local LrProgressScope = import 'LrProgressScope'
 
 local logger = LrLogger('ImportPicasaStep1')
-logger:enable("logfile")
+logger:enable {fatal = "logfile", error = "logfile", warn = "logfile", info = "logfile"}
 
 function Picasa.logBridge(level, message, lineNumber)
     if lineNumber == nil then
@@ -65,7 +65,7 @@ local task = function(context)
     end)
 
 
-    local progress = LrProgressScope({title = "Import Star, orientation..."})
+    local progress = LrProgressScope({ title = "Import Star, orientation..." })
     progress:setCancelable(true)
     progress:setCaption("Import Star, orientation...")
     local progressDone = 0
